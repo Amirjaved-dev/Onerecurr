@@ -7,10 +7,16 @@
     "test": "hardhat test",
     "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia"
   },
-  "keywords": ["solidity", "ethereum", "hardhat", "eip-7702"],
+  "keywords": [
+    "solidity",
+    "ethereum",
+    "hardhat",
+    "eip-7702"
+  ],
   "license": "MIT",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "dotenv": "^17.2.3",
     "hardhat": "^2.19.5"
   },
   "dependencies": {
