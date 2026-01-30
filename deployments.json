@@ -1,0 +1,12 @@
+{
+  "sepolia": {
+    "ActionExecutor": "0x29e26275177A5DD5cc92bE0dF2700D1BE2F9D6BE",
+    "ActionExecutor_deployedAt": "2026-01-30",
+    "PriceCheckHook": "0x2D5698D62eE320a35782F2075f6324Bff1fa7e23",
+    "PriceCheckHook_config": {
+      "minThreshold": 9500,
+      "maxThreshold": 10500
+    },
+    "PriceCheckHook_deployedAt": "2026-01-30T23:24:25.434Z"
+  }
+}
