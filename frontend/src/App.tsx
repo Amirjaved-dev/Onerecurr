@@ -1,4 +1,6 @@
 import Header from './components/Header';
+import SessionKeyManager from './components/SessionKeyManager';
+import ActionExecutorDemo from './components/ActionExecutorDemo';
 import { useWallet } from './context/WalletContext';
 import './App.css';
 
@@ -22,36 +24,15 @@ function App() {
 
         {connectedAddress ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            {/* Placeholder cards for future features */}
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 p-6">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
-                Session Key Manager
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Create and manage session keys for gasless transactions using EIP-7702.
-              </p>
-              <button
-                className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 rounded-lg cursor-not-allowed"
-                disabled
-              >
-                Coming Soon
-              </button>
+            {/* Session Key Manager */}
+            <div className="md:col-span-2">
+              <SessionKeyManager
+                contractAddress={import.meta.env.VITE_ACTION_EXECUTOR_ADDRESS || '0x29e26275177A5DD5cc92bE0dF2700D1BE2F9D6BE'}
+              />
             </div>
 
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 p-6">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
-                Action Executor
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Interact with the ActionExecutor contract on Sepolia testnet.
-              </p>
-              <button
-                className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 rounded-lg cursor-not-allowed"
-                disabled
-              >
-                Coming Soon
-              </button>
-            </div>
+            {/* Action Executor */}
+            <ActionExecutorDemo />
 
             <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 p-6">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
