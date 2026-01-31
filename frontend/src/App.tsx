@@ -1,27 +1,13 @@
-import { useState } from 'react';
 import Header from './components/Header';
+import { useWallet } from './context/WalletContext';
 import './App.css';
 
 function App() {
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
-
-  const handleConnect = (address: string) => {
-    setConnectedAddress(address);
-    console.log('Connected to:', address);
-  };
-
-  const handleDisconnect = () => {
-    setConnectedAddress(null);
-    console.log('Disconnected');
-  };
+  const { connectedAddress } = useWallet();
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <Header
-        connectedAddress={connectedAddress}
-        onConnect={handleConnect}
-        onDisconnect={handleDisconnect}
-      />
+      <Header />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-12">

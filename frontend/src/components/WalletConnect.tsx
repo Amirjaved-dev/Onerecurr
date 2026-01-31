@@ -1,43 +1,15 @@
-import { useState } from 'react';
+import { useWallet } from '../context/WalletContext';
 
-interface WalletConnectProps {
-    onConnect?: (address: string) => void;
-    onDisconnect?: () => void;
-}
-
-export default function WalletConnect({ onConnect, onDisconnect }: WalletConnectProps) {
-    const [isConnecting, setIsConnecting] = useState(false);
-    const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+export default function WalletConnect() {
+    const { wallets, connect, disconnect, connectedAddress, isConnecting, error } = useWallet();
 
     const handleConnect = async () => {
-        setIsConnecting(true);
         try {
-            // Check if ethereum is available (MetaMask/Ambire)
-            if (typeof window.ethereum !== 'undefined') {
-                // Request account access
-                const accounts = await window.ethereum.request({
-                    method: 'eth_requestAccounts'
-                });
-
-                if (accounts && accounts.length > 0) {
-                    const address = accounts[0];
-                    setConnectedAddress(address);
-                    onConnect?.(address);
-                }
-            } else {
-                alert('Please install a Web3 wallet (e.g., Ambire Wallet)');
-            }
-        } catch (error) {
-            console.error('Failed to connect wallet:', error);
-            alert('Failed to connect wallet. Please try again.');
-        } finally {
-            setIsConnecting(false);
+            await connect();
+        } catch (err) {
+            // Error is handled in the hook and stored in error state
+            console.error('Connection failed:', err);
         }
-    };
-
-    const handleDisconnect = () => {
-        setConnectedAddress(null);
-        onDisconnect?.();
     };
 
     const truncateAddress = (addr: string) => {
@@ -46,24 +18,42 @@ export default function WalletConnect({ onConnect, onDisconnect }: WalletConnect
 
     return (
         <div className="wallet-connect">
+            {error && (
+                <div className="mb-3 px-4 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+                    {error}
+                </div>
+            )}
+
             {!connectedAddress ? (
-                <button
-                    onClick={handleConnect}
-                    disabled={isConnecting}
-                    className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                    {isConnecting ? (
-                        <span className="flex items-center gap-2">
-                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            Connecting...
-                        </span>
-                    ) : (
-                        'Connect Wallet'
+                <div className="flex flex-col gap-2">
+                    <button
+                        onClick={handleConnect}
+                        disabled={isConnecting}
+                        className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                        {isConnecting ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Connecting...
+                            </span>
+                        ) : (
+                            'Connect Wallet'
+                        )}
+                    </button>
+                    {wallets.length === 0 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                            No wallets detected. Please install Ambire Wallet.
+                        </p>
                     )}
-                </button>
+                    {wallets.length > 0 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                            Detected: {wallets.map(w => w.name).join(', ')}
+                        </p>
+                    )}
+                </div>
             ) : (
                 <div className="flex items-center gap-3">
                     <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-2">
@@ -73,7 +63,7 @@ export default function WalletConnect({ onConnect, onDisconnect }: WalletConnect
                         </span>
                     </div>
                     <button
-                        onClick={handleDisconnect}
+                        onClick={disconnect}
                         className="px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-medium rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors duration-200"
                     >
                         Disconnect
@@ -82,11 +72,4 @@ export default function WalletConnect({ onConnect, onDisconnect }: WalletConnect
             )}
         </div>
     );
-}
-
-// Extend Window interface for TypeScript
-declare global {
-    interface Window {
-        ethereum?: any;
-    }
 }

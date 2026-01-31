@@ -1,12 +1,6 @@
 import WalletConnect from './WalletConnect';
 
-interface HeaderProps {
-    connectedAddress?: string | null;
-    onConnect?: (address: string) => void;
-    onDisconnect?: () => void;
-}
-
-export default function Header({ connectedAddress, onConnect, onDisconnect }: HeaderProps) {
+export default function Header() {
     return (
         <header className="w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -37,10 +31,7 @@ export default function Header({ connectedAddress, onConnect, onDisconnect }: He
                         </div>
 
                         {/* Wallet Connect Component */}
-                        <WalletConnect
-                            onConnect={onConnect}
-                            onDisconnect={onDisconnect}
-                        />
+                        <WalletConnect />
                     </div>
                 </div>
             </div>
