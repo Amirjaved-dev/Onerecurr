@@ -13,42 +13,30 @@ export function useActionExecutor() {
     const [error, setError] = useState<string | null>(null);
     const [txHash, setTxHash] = useState<string | null>(null);
 
-    // Get the contract instance
-    const getContract = useCallback((): ethers.Contract | null => {
-        const provider = getProvider();
-        if (!provider) return null;
-
+    // Read current action count
+    const readActionCount = useCallback(async () => {
         try {
-            const ethersProvider = new ethers.BrowserProvider(provider);
+            // Use public RPC from env for reading (more reliable than wallet provider)
+            const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
+            const provider = new ethers.JsonRpcProvider(rpcUrl);
+
             const contract = new ethers.Contract(
                 CONTRACT_ADDRESS,
                 ActionExecutorABI.abi,
-                ethersProvider
+                provider
             );
-            return contract;
-        } catch (err) {
-            console.error('Failed to create contract instance:', err);
-            return null;
-        }
-    }, [getProvider]);
 
-    // Read current action count
-    const readActionCount = useCallback(async () => {
-        const contract = getContract();
-        if (!contract) {
-            setError('Contract not available');
-            return;
-        }
-
-        try {
+            console.log('Reading action count from contract:', CONTRACT_ADDRESS);
             const count = await contract.actionCount();
+            console.log('Action count:', Number(count));
             setActionCount(Number(count));
             setError(null);
         } catch (err: any) {
             console.error('Failed to read action count:', err);
             setError('Failed to read action count');
+            setActionCount(null);
         }
-    }, [getContract]);
+    }, []);
 
     // Perform action (write transaction)
     const performAction = useCallback(async (): Promise<boolean> => {
@@ -99,11 +87,9 @@ export function useActionExecutor() {
         }
     }, [connectedAddress, getProvider, readActionCount]);
 
-    // Auto-read action count when wallet connects
+    // Auto-read action count when wallet connects OR on mount
     useEffect(() => {
-        if (connectedAddress) {
-            readActionCount();
-        }
+        readActionCount();
     }, [connectedAddress, readActionCount]);
 
     return {

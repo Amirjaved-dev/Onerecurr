@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from '../context/WalletContext';
 import {
@@ -17,6 +17,111 @@ interface SessionKeyState {
 }
 
 const SESSION_EXPIRY_MS = 3600000; // 1 hour
+
+// Helper functions for localStorage
+const getSessionStorageKey = (contractAddress: string, key: string) =>
+    `oneRecurr_${key}_${contractAddress}`;
+
+const saveSessionToLocalStorage = (
+    contractAddress: string,
+    sessionKey: ethers.Wallet,
+    authorization: EIP7702Authorization,
+    createdAt: number
+) => {
+    try {
+        const sessionKeyKey = getSessionStorageKey(contractAddress, 'sessionKey');
+        const authorizationKey = getSessionStorageKey(contractAddress, 'authorization');
+        const createdAtKey = getSessionStorageKey(contractAddress, 'createdAt');
+
+        console.log('💾 Saving session to localStorage:', {
+            contractAddress,
+            sessionAddress: sessionKey.address,
+            createdAt: new Date(createdAt).toLocaleString(),
+            keys: { sessionKeyKey, authorizationKey, createdAtKey }
+        });
+
+        // Custom replacer to handle BigInt serialization
+        const bigIntReplacer = (_key: string, value: any) => {
+            return typeof value === 'bigint' ? value.toString() : value;
+        };
+
+        localStorage.setItem(sessionKeyKey, sessionKey.privateKey);
+        localStorage.setItem(authorizationKey, JSON.stringify(authorization, bigIntReplacer));
+        localStorage.setItem(createdAtKey, createdAt.toString());
+
+        console.log('✅ Session saved successfully to localStorage');
+
+        // Verify save worked
+        const verification = {
+            sessionKey: !!localStorage.getItem(sessionKeyKey),
+            authorization: !!localStorage.getItem(authorizationKey),
+            createdAt: !!localStorage.getItem(createdAtKey)
+        };
+        console.log('Verification:', verification);
+    } catch (err) {
+        console.error('❌ Failed to save session to localStorage:', err);
+    }
+};
+
+const loadSessionFromLocalStorage = (
+    contractAddress: string
+): SessionKeyState | null => {
+    try {
+        const privateKey = localStorage.getItem(
+            getSessionStorageKey(contractAddress, 'sessionKey')
+        );
+        const authorizationJson = localStorage.getItem(
+            getSessionStorageKey(contractAddress, 'authorization')
+        );
+        const createdAtStr = localStorage.getItem(
+            getSessionStorageKey(contractAddress, 'createdAt')
+        );
+
+        if (!privateKey || !authorizationJson || !createdAtStr) {
+            return null;
+        }
+
+        const createdAt = parseInt(createdAtStr, 10);
+
+        // Check if session is expired
+        if (!isSessionKeyValid(createdAt, SESSION_EXPIRY_MS)) {
+            console.log('Stored session is expired, clearing...');
+            clearSessionFromLocalStorage(contractAddress);
+            return null;
+        }
+
+        const sessionKey = new ethers.Wallet(privateKey);
+        const authorization = JSON.parse(authorizationJson);
+
+        // Convert string values back to BigInt
+        authorization.chainId = BigInt(authorization.chainId);
+        authorization.nonce = BigInt(authorization.nonce);
+
+        console.log('Session restored from localStorage');
+
+        return {
+            sessionKey,
+            authorization,
+            createdAt,
+            isActive: true,
+        };
+    } catch (err) {
+        console.error('Failed to load session from localStorage:', err);
+        clearSessionFromLocalStorage(contractAddress);
+        return null;
+    }
+};
+
+const clearSessionFromLocalStorage = (contractAddress: string) => {
+    try {
+        localStorage.removeItem(getSessionStorageKey(contractAddress, 'sessionKey'));
+        localStorage.removeItem(getSessionStorageKey(contractAddress, 'authorization'));
+        localStorage.removeItem(getSessionStorageKey(contractAddress, 'createdAt'));
+        console.log('Session cleared from localStorage');
+    } catch (err) {
+        console.error('Failed to clear session from localStorage:', err);
+    }
+};
 
 export function useSessionKey(contractAddress: string) {
     const { connectedAddress, getProvider, getChainId } = useWallet();
@@ -43,6 +148,39 @@ export function useSessionKey(contractAddress: string) {
 
         return () => clearInterval(interval);
     }, [sessionState.createdAt, sessionState.isActive]);
+
+    // Restore session from localStorage on mount
+    // Using a ref to track if we've already attempted restoration
+    const hasAttemptedRestore = useRef(false);
+
+    useEffect(() => {
+        // Only attempt restore once when wallet first connects
+        if (!connectedAddress || hasAttemptedRestore.current) {
+            return;
+        }
+
+        console.log('Attempting to restore session from localStorage...');
+        hasAttemptedRestore.current = true;
+
+        const restoredSession = loadSessionFromLocalStorage(contractAddress);
+        if (restoredSession) {
+            console.log('✅ Session restored successfully:', {
+                address: restoredSession.sessionKey?.address,
+                createdAt: new Date(restoredSession.createdAt!).toLocaleString(),
+                isActive: restoredSession.isActive
+            });
+            setSessionState(restoredSession);
+        } else {
+            console.log('ℹ️ No valid session found in localStorage');
+        }
+    }, [connectedAddress, contractAddress]);
+
+    // Reset restore flag when wallet disconnects
+    useEffect(() => {
+        if (!connectedAddress) {
+            hasAttemptedRestore.current = false;
+        }
+    }, [connectedAddress]);
 
     // Create a new session key and request authorization
     const createSession = useCallback(async () => {
@@ -79,22 +217,14 @@ export function useSessionKey(contractAddress: string) {
 
             // Request EIP-7702 authorization signature from user
             console.log('Requesting authorization signature...');
-            const signature = await requestAuthorizationSignature(
+            const authorization = await requestAuthorizationSignature(
                 provider,
                 connectedAddress,
                 chainId,
                 contractAddress,
                 nonce
             );
-            console.log('Authorization signature received');
-
-            // Create authorization object
-            const authorization: EIP7702Authorization = {
-                chainId: BigInt(chainId),
-                address: contractAddress,
-                nonce: BigInt(nonce),
-                signature,
-            };
+            console.log('Authorization received:', authorization);
 
             // Store session key and authorization in state (memory only!)
             const newState: SessionKeyState = {
@@ -106,6 +236,14 @@ export function useSessionKey(contractAddress: string) {
 
             setSessionState(newState);
             console.log('Session key created successfully');
+
+            // Save to localStorage
+            saveSessionToLocalStorage(
+                contractAddress,
+                sessionKey,
+                authorization,
+                newState.createdAt!
+            );
 
             return sessionKey;
         } catch (err: any) {
@@ -127,8 +265,12 @@ export function useSessionKey(contractAddress: string) {
             isActive: false,
         });
         setError(null);
+
+        // Clear from localStorage
+        clearSessionFromLocalStorage(contractAddress);
+
         console.log('Session cleared');
-    }, []);
+    }, [contractAddress]);
 
     // Sign a message with the session key
     const signWithSessionKey = useCallback(

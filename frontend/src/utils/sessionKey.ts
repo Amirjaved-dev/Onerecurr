@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { type Address, type Hex } from 'viem';
 
 /**
  * Generate a new ephemeral session key pair
@@ -11,69 +12,25 @@ export function generateSessionKey(): ethers.Wallet {
 
 /**
  * EIP-7702 Authorization structure
- * This allows an EOA to temporarily delegate transaction signing to a session key
+ * This allows an EOA to temporarily delegate transaction signing to a contract
  */
 export interface EIP7702Authorization {
     chainId: bigint;
-    address: string;  // The contract address to authorize (e.g., ActionExecutor)
+    address: Address;  // The contract address to authorize (delegation target)
     nonce: bigint;
-    signature?: string;
+    r?: Hex;
+    s?: Hex;
+    yParity?: number;
 }
 
 /**
- * Construct EIP-7702 typed data for signing
- * This creates the structured data that Ambire Wallet will prompt the user to sign
- * 
- * @param chainId - The chain ID (e.g., 11155111 for Sepolia)
- * @param contractAddress - The contract to authorize (e.g., ActionExecutor address)
- * @param sessionKeyAddress - The ephemeral session key's address
- * @param nonce - The current nonce for the EOA account
- */
-export function constructEIP7702TypedData(
-    chainId: number,
-    contractAddress: string,
-    sessionKeyAddress: string,
-    nonce: number
-) {
-    // EIP-712 domain for EIP-7702
-    const domain = {
-        name: 'EIP-7702 Authorization',
-        version: '1',
-        chainId: chainId,
-    };
-
-    // EIP-7702 authorization types
-    const types = {
-        Authorization: [
-            { name: 'chainId', type: 'uint256' },
-            { name: 'address', type: 'address' },
-            { name: 'nonce', type: 'uint64' },
-        ],
-    };
-
-    // Authorization message
-    const value = {
-        chainId: BigInt(chainId),
-        address: contractAddress,  // Contract to authorize
-        nonce: BigInt(nonce),
-    };
-
-    return {
-        domain,
-        types,
-        value,
-        primaryType: 'Authorization' as const,
-    };
-}
-
-/**
- * Request EIP-7702 authorization signature from wallet
+ * Request EIP-7702 authorization signature from wallet using Viem
  * This will prompt the user to sign the authorization in their Ambire Wallet
  * 
  * @param provider - The EIP-1193 provider from wallet
  * @param userAddress - The connected user's address
- * @param chainId - The chain ID
- * @param contractAddress - The contract to authorize
+ * @param chainId - The chain ID (must be number for Viem)
+ * @param contract Address - The contract to authorize
  * @param nonce - Current nonce
  */
 export async function requestAuthorizationSignature(
@@ -82,50 +39,112 @@ export async function requestAuthorizationSignature(
     chainId: number,
     contractAddress: string,
     nonce: number
-): Promise<string> {
-    const typedData = constructEIP7702TypedData(
-        chainId,
-        contractAddress,
-        userAddress,
-        nonce
-    );
-
+): Promise<EIP7702Authorization> {
     try {
-        // Request signature using eth_signTypedData_v4
+        console.log('Creating EIP-7702 authorization...');
+        console.log('Contract to authorize:', contractAddress);
+        console.log('Chain ID:', chainId);
+        console.log('Nonce:', nonce);
+        console.log('User address:', userAddress);
+
+        // Try direct RPC call for EIP-7702 authorization first
+        // This is experimental and may not be supported by all wallets yet
+        try {
+            console.log('Attempting wallet_signAuthorization (EIP-7702)...');
+
+            const authorizationParams = {
+                chainId: `0x${chainId.toString(16)}`,
+                address: contractAddress,
+                nonce: `0x${nonce.toString(16)}`,
+            };
+
+            const authResult = await provider.request({
+                method: 'wallet_signAuthorization',
+                params: [authorizationParams],
+            });
+
+            console.log('EIP-7702 authorization signed successfully:', authResult);
+
+            return {
+                chainId: BigInt(chainId),
+                address: contractAddress as Address,
+                nonce: BigInt(nonce),
+                r: authResult.r as Hex,
+                s: authResult.s as Hex,
+                yParity: authResult.yParity || (authResult.v === 27 ? 0 : 1),
+            };
+        } catch (rpcError: any) {
+            console.log('Direct EIP-7702 RPC not supported:', rpcError.message);
+            console.log('Falling back to EIP-712 signature...');
+        }
+
+        // Fallback: Use eth_signTypedData_v4 (EIP-712)
+        // This provides cryptographic proof of user consent
+        // Note: This is a demo/PoC approach until EIP-7702 has wider wallet support
+        console.log('Using EIP-712 typed data signature as authorization proof');
+
+        // Proper EIP-712 structure with EIP712Domain type definition
+        const typedData = {
+            types: {
+                EIP712Domain: [
+                    { name: 'name', type: 'string' },
+                    { name: 'version', type: 'string' },
+                    { name: 'chainId', type: 'uint256' },
+                ],
+                Authorization: [
+                    { name: 'contract', type: 'address' },
+                    { name: 'nonce', type: 'uint256' },
+                ],
+            },
+            primaryType: 'Authorization',
+            domain: {
+                name: 'One Recurr Session Authorization',
+                version: '1',
+                chainId: chainId,
+            },
+            message: {
+                contract: contractAddress,
+                nonce: nonce,
+            },
+        };
+
+        // Custom replacer to handle any BigInt values (defensive)
+        const bigIntReplacer = (_key: string, value: any) => {
+            return typeof value === 'bigint' ? value.toString() : value;
+        };
+
         const signature = await provider.request({
             method: 'eth_signTypedData_v4',
-            params: [
-                userAddress,
-                JSON.stringify({
-                    domain: typedData.domain,
-                    types: typedData.types,
-                    primaryType: typedData.primaryType,
-                    message: typedData.value,
-                }),
-            ],
-        });
+            params: [userAddress, JSON.stringify(typedData, bigIntReplacer)],
+        }) as Hex;
 
-        return signature;
-    } catch (error) {
+        // Parse signature components
+        const r = ('0x' + signature.slice(2, 66)) as Hex;
+        const s = ('0x' + signature.slice(66, 130)) as Hex;
+        const v = parseInt(signature.slice(130, 132), 16);
+
+        console.log('EIP-712 signature received and parsed successfully');
+
+        return {
+            chainId: BigInt(chainId),
+            address: contractAddress as Address,
+            nonce: BigInt(nonce),
+            r,
+            s,
+            yParity: v === 27 ? 0 : 1,
+        };
+    } catch (error: any) {
         console.error('Failed to get authorization signature:', error);
-        throw new Error('User rejected authorization or wallet does not support EIP-712');
+
+        // Provide more helpful error messages
+        if (error.message?.includes('reject')) {
+            throw new Error('User rejected the authorization request');
+        } else if (error.code === 4001) {
+            throw new Error('User rejected the authorization request');
+        } else {
+            throw new Error(`Authorization failed: ${error.message || 'Unknown error'}. Please ensure you're using the latest Ambire Wallet.`);
+        }
     }
-}
-
-/**
- * Format authorization for EIP-7702 transaction
- * This prepares the authorization data to be included in a transaction
- */
-export function formatAuthorizationForTransaction(
-    authorization: EIP7702Authorization
-): string {
-    // Format: chainId (32 bytes) + address (20 bytes) + nonce (8 bytes) + signature (65 bytes)
-    const chainIdHex = authorization.chainId.toString(16).padStart(64, '0');
-    const addressHex = authorization.address.replace('0x', '').padStart(40, '0');
-    const nonceHex = authorization.nonce.toString(16).padStart(16, '0');
-    const signatureHex = authorization.signature?.replace('0x', '') || '';
-
-    return '0x' + chainIdHex + addressHex + nonceHex + signatureHex;
 }
 
 /**

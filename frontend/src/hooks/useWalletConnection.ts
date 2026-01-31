@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createStore, type EIP1193Provider } from 'mipd';
 
+// LocalStorage keys
+const STORAGE_KEYS = {
+    CONNECTED_ADDRESS: 'oneRecurr_connectedAddress',
+    SELECTED_WALLET_UUID: 'oneRecurr_selectedWalletUuid',
+};
+
 export interface WalletInfo {
     uuid: string;
     name: string;
@@ -55,6 +61,52 @@ export function useWalletConnection() {
         };
     }, []);
 
+    // Auto-reconnect on mount if wallet was previously connected
+    useEffect(() => {
+        const attemptAutoReconnect = async () => {
+            const savedAddress = localStorage.getItem(STORAGE_KEYS.CONNECTED_ADDRESS);
+            const savedWalletUuid = localStorage.getItem(STORAGE_KEYS.SELECTED_WALLET_UUID);
+
+            if (!savedAddress || !savedWalletUuid || wallets.length === 0) {
+                return;
+            }
+
+            console.log('Attempting auto-reconnect to wallet:', savedWalletUuid);
+
+            // Find the previously connected wallet
+            const wallet = wallets.find(w => w.uuid === savedWalletUuid);
+            if (!wallet) {
+                console.log('Previously connected wallet not found, clearing storage');
+                localStorage.removeItem(STORAGE_KEYS.CONNECTED_ADDRESS);
+                localStorage.removeItem(STORAGE_KEYS.SELECTED_WALLET_UUID);
+                return;
+            }
+
+            try {
+                // Use eth_accounts instead of eth_requestAccounts to avoid popup
+                const accounts = await wallet.provider.request({
+                    method: 'eth_accounts',
+                }) as string[];
+
+                if (accounts && accounts.length > 0) {
+                    setSelectedWallet(wallet);
+                    setConnectedAddress(accounts[0]);
+                    console.log('Auto-reconnected to', wallet.name, ':', accounts[0]);
+                } else {
+                    console.log('No accounts available, clearing storage');
+                    localStorage.removeItem(STORAGE_KEYS.CONNECTED_ADDRESS);
+                    localStorage.removeItem(STORAGE_KEYS.SELECTED_WALLET_UUID);
+                }
+            } catch (err) {
+                console.error('Auto-reconnect failed:', err);
+                localStorage.removeItem(STORAGE_KEYS.CONNECTED_ADDRESS);
+                localStorage.removeItem(STORAGE_KEYS.SELECTED_WALLET_UUID);
+            }
+        };
+
+        attemptAutoReconnect();
+    }, [wallets]);
+
     // Connect to a specific wallet
     const connect = useCallback(async (wallet?: WalletInfo) => {
         setIsConnecting(true);
@@ -94,6 +146,11 @@ export function useWalletConnection() {
             if (accounts && accounts.length > 0) {
                 setSelectedWallet(targetWallet);
                 setConnectedAddress(accounts[0]);
+
+                // Save to localStorage for persistence
+                localStorage.setItem(STORAGE_KEYS.CONNECTED_ADDRESS, accounts[0]);
+                localStorage.setItem(STORAGE_KEYS.SELECTED_WALLET_UUID, targetWallet.uuid);
+
                 console.log('Connected to', targetWallet.name, ':', accounts[0]);
                 return accounts[0];
             } else {
@@ -114,6 +171,11 @@ export function useWalletConnection() {
         setSelectedWallet(null);
         setConnectedAddress(null);
         setError(null);
+
+        // Clear localStorage
+        localStorage.removeItem(STORAGE_KEYS.CONNECTED_ADDRESS);
+        localStorage.removeItem(STORAGE_KEYS.SELECTED_WALLET_UUID);
+
         console.log('Wallet disconnected');
     }, []);
 
