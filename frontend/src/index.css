@@ -99,3 +99,7 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #4b5563;
 }
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}

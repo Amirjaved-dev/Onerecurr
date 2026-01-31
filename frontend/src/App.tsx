@@ -1,6 +1,7 @@
 import Header from './components/Header';
 import SessionKeyManager from './components/SessionKeyManager';
 import ActionExecutorDemo from './components/ActionExecutorDemo';
+import { TippingStream } from './components/TippingStream';
 import { Card } from './components/ui/Card';
 import { Button } from './components/ui/Button';
 import { useWallet } from './context/WalletContext';
@@ -68,15 +69,10 @@ function App() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                             <ActionExecutorDemo />
 
-                            {/* Placeholders for future features */}
-                            <Card className="opacity-75 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
-                                <div className="h-full flex flex-col items-center justify-center text-center p-6">
-                                    <div className="text-4xl mb-4">⚡</div>
-                                    <h3 className="text-lg font-bold text-white mb-2">Yellow Tipping</h3>
-                                    <p className="text-sm text-gray-400 mb-4">Instant off-chain micropayments integration coming soon.</p>
-                                    <span className="text-xs px-2 py-1 bg-white/5 rounded-full text-gray-500">In Development</span>
-                                </div>
-                            </Card>
+                            {/* Yellow Network Tipping (Live) */}
+                            <TippingStream
+                                contractAddress={import.meta.env.VITE_ACTION_EXECUTOR_ADDRESS || '0x29e26275177A5DD5cc92bE0dF2700D1BE2F9D6BE'}
+                            />
 
                             <Card className="opacity-75 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
                                 <div className="h-full flex flex-col items-center justify-center text-center p-6">

@@ -6,7 +6,7 @@ import { type Address, type Hex } from 'viem';
  * This key will be used to sign transactions during the session
  * IMPORTANT: Keys are stored in memory only for security
  */
-export function generateSessionKey(): ethers.Wallet {
+export function generateSessionKey(): ethers.HDNodeWallet {
     return ethers.Wallet.createRandom();
 }
 

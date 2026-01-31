@@ -10,7 +10,7 @@ import {
 } from '../utils/sessionKey';
 
 interface SessionKeyState {
-    sessionKey: ethers.Wallet | null;
+    sessionKey: ethers.Wallet | ethers.HDNodeWallet | null;
     authorization: EIP7702Authorization | null;
     createdAt: number | null;
     isActive: boolean;
@@ -24,7 +24,7 @@ const getSessionStorageKey = (contractAddress: string, key: string) =>
 
 const saveSessionToLocalStorage = (
     contractAddress: string,
-    sessionKey: ethers.Wallet,
+    sessionKey: ethers.Wallet | ethers.HDNodeWallet,
     authorization: EIP7702Authorization,
     createdAt: number
 ) => {
@@ -341,3 +341,24 @@ export function useSessionKey(contractAddress: string) {
         signTransactionWithSessionKey,
     };
 }
+
+/**
+ * Get session key as ethers.js Signer for Yellow Network signing
+ * @returns Ethers Wallet instance or null if no active session
+ */
+export const getSessionKeySigner = (contractAddress: string): ethers.Wallet | null => {
+    const sessionKeyKey = getSessionStorageKey(contractAddress, 'sessionKey');
+    const privateKey = localStorage.getItem(sessionKeyKey);
+
+    if (!privateKey) {
+        console.warn('No active session key found for Yellow Network signing');
+        return null;
+    }
+
+    try {
+        return new ethers.Wallet(privateKey);
+    } catch (error) {
+        console.error('Failed to create signer from session key:', error);
+        return null;
+    }
+};
