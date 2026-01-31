@@ -8,6 +8,12 @@ export default function WalletConnect() {
     const [showWallets, setShowWallets] = useState(false);
 
     const handleConnect = async () => {
+        // If no wallets detected, guide user to install one
+        if (wallets.length === 0) {
+            window.open('https://www.ambire.com/', '_blank');
+            return;
+        }
+
         try {
             if (wallets.length > 1) {
                 setShowWallets(!showWallets);
@@ -51,7 +57,7 @@ export default function WalletConnect() {
                     </svg>
                 }
             >
-                Connect Wallet
+                {wallets.length === 0 ? 'Install Wallet' : 'Connect Wallet'}
             </Button>
 
             {error && (

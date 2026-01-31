@@ -32,7 +32,7 @@ export function useWalletConnection() {
             const walletList: WalletInfo[] = [];
             detectedWallets.forEach((provider, uuid) => {
                 walletList.push({
-                    uuid,
+                    uuid: String(uuid),
                     name: provider.info.name,
                     icon: provider.info.icon,
                     rdns: provider.info.rdns,
@@ -65,11 +65,21 @@ export function useWalletConnection() {
 
             // If no wallet specified, try to find Ambire or use first available
             if (!targetWallet) {
+                console.log('No specific wallet requested. Searching for Ambire or falling back to first available...');
+                console.log('Available wallets:', wallets.map(w => w.name));
+
                 const ambire = wallets.find(w =>
                     w.name.toLowerCase().includes('ambire') ||
                     w.rdns.includes('ambire')
                 );
+
                 targetWallet = ambire || wallets[0];
+
+                if (targetWallet) {
+                    console.log(`Selected wallet: ${targetWallet.name} (${targetWallet.rdns})`);
+                } else {
+                    console.log('No wallets found in detected list.');
+                }
             }
 
             if (!targetWallet) {

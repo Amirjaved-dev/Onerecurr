@@ -1,8 +1,9 @@
 import Header from './components/Header';
 import SessionKeyManager from './components/SessionKeyManager';
 import ActionExecutorDemo from './components/ActionExecutorDemo';
-import { useWallet } from './context/WalletContext';
 import { Card } from './components/ui/Card';
+import { Button } from './components/ui/Button';
+import { useWallet } from './context/WalletContext';
 
 function App() {
     const { connectedAddress } = useWallet();
@@ -29,6 +30,10 @@ function App() {
                             Powered by <span className="text-blue-400 font-semibold">EIP-7702</span> sesssion keys and
                             <span className="text-yellow-400 font-semibold"> Yellow Network</span> state channels.
                         </p>
+
+                        <div className="flex justify-center mb-16">
+                            <ConnectWalletCTA />
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left mt-20">
                             <FeatureCard
@@ -86,6 +91,20 @@ function App() {
                 )}
             </main>
         </div>
+    );
+}
+
+function ConnectWalletCTA() {
+    const { connect, isConnecting } = useWallet();
+
+    return (
+        <Button
+            onClick={() => connect()}
+            isLoading={isConnecting}
+            className="!text-lg !px-8 !py-4 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all"
+        >
+            Connect Wallet to Start
+        </Button>
     );
 }
 
